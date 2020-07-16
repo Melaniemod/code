@@ -7,6 +7,8 @@ __pycache__/
 kaggle/kaggle-web-traffic/data/
 recommendation/DeepFM/data/
 recommendation/DeepFM/example/data
+recommendation/DeepFM/example/output/
+*.csv
 
 # C extensions
 *.so
