@@ -3,8 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-/Users/wmy/workspace/project/code/test
-*.png
+# 数据不同步
+test/
+
 
 # C extensions
 *.so
