@@ -1,8 +1,10 @@
-/Users/wmy/workspace/project/code/test
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+/Users/wmy/workspace/project/code/test
+*.png
 
 # C extensions
 *.so
