@@ -3,9 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# 数据不同步
-test/
-
+# 不同步的数据目录
+kaggle/kaggle-web-traffic/data/
+recommendation/DeepFM/data/
+recommendation/DeepFM/example/data
 
 # C extensions
 *.so
