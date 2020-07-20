@@ -25,6 +25,7 @@ class DeepFM(BaseEstimator, TransformerMixin):
                  batch_norm=0, batch_norm_decay=0.995,
                  verbose=False, random_seed=2016,
                  use_fm=True, use_deep=True,
+                 # todo eval_metric 默认AUC，这里使用的是gini_norm
                  loss_type="logloss", eval_metric=roc_auc_score,
                  l2_reg=0.0, greater_is_better=True):
         assert (use_fm or use_deep)
@@ -65,6 +66,7 @@ class DeepFM(BaseEstimator, TransformerMixin):
         self.graph = tf.Graph()
         with self.graph.as_default():
 
+            # todo tf.set_random_seed()函数，使用之后后面设置的随机数都不需要设置seed，而可以跨会话生成相同的随机数。
             tf.set_random_seed(self.random_seed)
 
             self.feat_index = tf.placeholder(tf.int32, shape=[None, None],
@@ -143,6 +145,9 @@ class DeepFM(BaseEstimator, TransformerMixin):
                 self.loss = tf.nn.l2_loss(tf.subtract(self.label, self.out))
             # l2 regularization on weights
             if self.l2_reg > 0:
+                # todo 这里FM的正则只加FM之后全连接的正则，没有加前面FM中的正则
+                #  regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)  #scale代表正则化系数的值
+                #  tf中通过tf.contrib.layers.l2_regularizer(scale=0.1) 创建一个正则化方法，此处是L2正则化，#scale代表正则化系数的值。
                 self.loss += tf.contrib.layers.l2_regularizer(
                     self.l2_reg)(self.weights["concat_projection"])
                 if self.use_deep:
@@ -164,10 +169,11 @@ class DeepFM(BaseEstimator, TransformerMixin):
                     self.loss)
             elif self.optimizer_type == "yellowfin":
                 pass
-                # self.optimizer = YFOptimizer(learning_rate=self.learning_rate, momentum=0.0).minimize(
-                #     self.loss)
+                self.optimizer = YFOptimizer(learning_rate=self.learning_rate, momentum=0.0).minimize(
+                    self.loss)
 
             # init
+            # 这里建了saver没用到吧
             self.saver = tf.train.Saver()
             init = tf.global_variables_initializer()
             self.sess = self._init_session()
@@ -206,6 +212,8 @@ class DeepFM(BaseEstimator, TransformerMixin):
         num_layer = len(self.deep_layers)
         input_size = self.field_size * self.embedding_size
         glorot = np.sqrt(2.0 / (input_size + self.deep_layers[0]))
+        # todo 为什么有的用 np.random.normal 有的用 tf.random_normal 初始化
+        #  numpy.random.normal(loc=0.0, scale=1.0, size=None)。 loc：此概率分布的均值；scale：此概率分布的标准差
         weights["layer_0"] = tf.Variable(
             np.random.normal(loc=0, scale=glorot, size=(input_size, self.deep_layers[0])), dtype=np.float32)
         weights["bias_0"] = tf.Variable(np.random.normal(loc=0, scale=glorot, size=(1, self.deep_layers[0])),
@@ -249,6 +257,7 @@ class DeepFM(BaseEstimator, TransformerMixin):
                               is_training=True, reuse=None, trainable=True, scope=scope_bn)
         bn_inference = batch_norm(x, decay=self.batch_norm_decay, center=True, scale=True, updates_collections=None,
                                   is_training=False, reuse=True, trainable=True, scope=scope_bn)
+        # todo tf.cond()类似于c语言中的if...else...，用来控制数据流向
         z = tf.cond(train_phase, lambda: bn_train, lambda: bn_inference)
         return z
 
@@ -311,6 +320,7 @@ class DeepFM(BaseEstimator, TransformerMixin):
 
             # evaluate training and validation datasets
             train_result = self.evaluate(Xi_train, Xv_train, y_train)
+
             self.train_result.append(train_result)
             if has_valid:
                 valid_result = self.evaluate(Xi_valid, Xv_valid, y_valid)
@@ -355,7 +365,7 @@ class DeepFM(BaseEstimator, TransformerMixin):
     def training_termination(self, valid_result):
         if len(valid_result) > 5:
             if self.greater_is_better:
-                # todo 这里损失函数还在不断下降为什么要停止呢？
+                # todo 这里损失函数还在不断下降为什么要停止呢？-- 因为条件是越大越好，
                 if valid_result[-1] < valid_result[-2] and \
                     valid_result[-2] < valid_result[-3] and \
                     valid_result[-3] < valid_result[-4] and \
@@ -386,7 +396,8 @@ class DeepFM(BaseEstimator, TransformerMixin):
             feed_dict = {self.feat_index: Xi_batch,
                          self.feat_value: Xv_batch,
                          self.label: y_batch,
-                         self.dropout_keep_fm: [1.0] * len(self.dropout_fm),
+
+                        self.dropout_keep_fm: [1.0] * len(self.dropout_fm),
                          self.dropout_keep_deep: [1.0] * len(self.dropout_deep),
                          self.train_phase: False}
             batch_out = self.sess.run(self.out, feed_dict=feed_dict)

@@ -30,18 +30,18 @@ def gini(actual, pred):
     # todo np.lexsort((b,a)) # Sort by a, then by b。先按照a列表排序，对于a中相同的元素，按照列表b排序
     all = all[np.lexsort((all[:, 2], 1 * all[:, 1]))]
     # todo
-    print(f"all:{all}")
+    # print(f"all:{all}")
     totalLosses = all[:, 0].sum()
     # todo 除以totalLosses是将这个数规划到 0～1之间
     giniSum = all[:, 0].cumsum().sum() / totalLosses
-    print(f"all[:, 0].cumsum().sum()={all[:, 0].cumsum().sum()}；all[:, 0].cumsum()={all[:, 0].cumsum()};giniSum={giniSum}；totalLosses={totalLosses}；len(actual)={len(actual)}")
+    # print(f"all[:, 0].cumsum().sum()={all[:, 0].cumsum().sum()}；all[:, 0].cumsum()={all[:, 0].cumsum()};giniSum={giniSum}；totalLosses={totalLosses}；len(actual)={len(actual)}")
 
     giniSum = (len(actual) + 1) / 2. -giniSum
-    print(f"giniSum={giniSum}; giniSum / len(actual)={giniSum / len(actual)}")
+    # print(f"giniSum={giniSum}; giniSum / len(actual)={giniSum / len(actual)}")
     return giniSum / len(actual)
 
 def gini_norm(actual, pred):
-    print(f"gini(actual, pred) / gini(actual, actual)={gini(actual, pred) / gini(actual, actual)}")
+    # print(f"gini(actual, pred) / gini(actual, actual)={gini(actual, pred) / gini(actual, actual)}")
     return gini(actual, pred) / gini(actual, actual)
 
 if __name__ == '__main__':
