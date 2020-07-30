@@ -333,6 +333,7 @@ class PNN1(Model):
         num_pairs = int(num_inputs * (num_inputs - 1) / 2)
         # todo 该节点输入的维度；开始输入deep的维度就是:线性部分的维度(num_inputs * embed_size)+线性部分的维度(num_pairs)
         #  看了几个 code 都是这样直接使用 embedding 做交叉，而不是用 embedding 再做一个权重矩阵。这样 PNN 的非线性部分就是FM对吧？
+        #  这里非线性项最后输出的大小是 num_pairs，交叉之后做了加和
         node_in = num_inputs * embed_size + num_pairs
         # node_in = num_inputs * (embed_size + num_inputs)
         # todo 这里输出层只有一个神经元，如何判断该推荐哪个商品呢？
@@ -440,6 +441,9 @@ class PNN1(Model):
                         xw3d, [1, 0, 2]),
                     col),
                 [1, 0, 2])
+            # todo p=Tensor("transpose_1:0", shape=(?, 120, 10), dtype=float32)
+            #  这里 p,q 都已经是[-1, num_pairs, embed_size]的了吧，为什么还要reshape成这样的呢
+            # print(f"p={p}")
             p = tf.reshape(p, [-1, num_pairs, embed_size])
             q = tf.reshape(q, [-1, num_pairs, embed_size])
             # todo 这里不是只有一个 embedding 吗？原论文中 首先有个 W 将原稀疏特征转化为 embedding，然后根据 embedding做线性部分 和非线性部分
@@ -476,6 +480,7 @@ class PNN1(Model):
             print(f"self.y_prob={self.y_prob};")
 
             self.loss = tf.reduce_mean(
+                #
                 tf.nn.sigmoid_cross_entropy_with_logits(logits=l, labels=self.y))
             if layer_l2 is not None:
                 # todo 这里加正则， embedding的权重 和 deep权重都加了，这里 embed_l2=0，相当于没用正则吗？
