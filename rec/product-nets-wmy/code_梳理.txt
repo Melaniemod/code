@@ -1,8 +1,7 @@
-	输入：每个 field 的size，embed_size, layer_sizes=(列表), layer_acts=(列表), drop_out=,
-                 embed_l2=None, layer_l2=, init_path=None, opt_algo='gd', learning_rate=, random_seed=None
+
   model
   	init
-  		X,y,layer_keeps,vars,keep_prob_train,keep_prob_test
+  		sess,X,y,layer_keeps,vars,keep_prob_train,keep_prob_test
 
   	run 
   		输入：fetch(loss,opt)，X，y, mode
@@ -18,7 +17,8 @@
   		是否有 dropout ，如果有
   			看是训练模式还是test阶段，喂入响应的dropout值
 
-  pnn
+  pnn	输入：每个 field 的size，embed_size, layer_sizes=(列表), layer_acts=(列表), drop_out=,
+                 embed_l2=None, layer_l2=, init_path=None, opt_algo='gd', learning_rate=, random_seed=None
   	init
   		首先初始化init，
   		多少个field
@@ -54,12 +54,9 @@
   				然后对deep层每层的权重矩阵加正则
   			定义优化器，使用util中的函数优化孙损失函数
 
-
-
-
-
-
-
+  			设备配置
+  			创建sess
+  			使用sess初始化变量
 
 
 

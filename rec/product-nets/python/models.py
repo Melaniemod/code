@@ -43,6 +43,7 @@ class Model:
                 feed_dict[self.y] = y
             if self.layer_keeps is not None:
                 if mode == 'train':
+                    # todo 这里 self.layer_keeps 是一个容器，self.keep_prob_train是一个数值；根据模型的不同阶段，看喂入 self.keep_prob_test 还是喂入 self.keep_prob_train
                     feed_dict[self.layer_keeps] = self.keep_prob_train
                 elif mode == 'test':
                     feed_dict[self.layer_keeps] = self.keep_prob_test
