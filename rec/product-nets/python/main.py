@@ -21,6 +21,8 @@ if not p in sys.path:
 from python import utils
 from python.models import LR, FM, PNN1, PNN2, FNN, CCPM, DeepFM
 
+
+
 train_file = '../data/train.txt'
 test_file = '../data/test.txt'
 
@@ -47,6 +49,7 @@ num_feas = len(utils.FIELD_SIZES)
 
 min_round = 1
 num_round = 200
+num_round = 2
 early_stop_round = 5
 batch_size = 1024
 
@@ -187,6 +190,7 @@ def train(model):
             X_i, y_i = utils.slice(train_data)
             _, l = model.run(fetches, X_i, y_i)
             ls = [l]
+
         train_preds = []
         print('[%d]\tevaluating...' % i)
         bar = progressbar.ProgressBar()
@@ -194,17 +198,21 @@ def train(model):
             X_i, _ = utils.slice(train_data, j * 10000, 10000)
             preds = model.run(model.y_prob, X_i, mode='test')
             train_preds.extend(preds)
+
         test_preds = []
         bar = progressbar.ProgressBar()
         for j in bar(range(int(test_size / 10000 + 1))):
             X_i, _ = utils.slice(test_data, j * 10000, 10000)
             preds = model.run(model.y_prob, X_i, mode='test')
             test_preds.extend(preds)
+
         train_score = roc_auc_score(train_data[1], train_preds)
         test_score = roc_auc_score(test_data[1], test_preds)
         print('[%d]\tloss (with l2 norm):%f\ttrain-auc: %f\teval-auc: %f' % (i, np.mean(ls), train_score, test_score))
         history_score.append(test_score)
+
         if i > min_round and i > early_stop_round:
+            # todo 如果5次前的效果最好，并且5次前和现在效果相差不大，则提前停止
             if np.argmax(history_score) == i - early_stop_round and history_score[-1] - history_score[
                         -1 * early_stop_round] < 1e-5:
                 print('early stop\nbest iteration:\n[%d]\teval-auc: %f' % (

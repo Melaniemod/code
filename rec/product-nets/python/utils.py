@@ -14,6 +14,7 @@ from scipy.sparse import coo_matrix
 
 DTYPE = tf.float32
 
+# todo 一共有 16个filed 为什么要定义 26 个呢？应该是保留足够的，后面会删掉多余的
 FIELD_SIZES = [0] * 26
 with open('../data/featindex.txt') as fin:
     for line in fin:
@@ -22,11 +23,14 @@ with open('../data/featindex.txt') as fin:
             # todo 为什么这里要 - 1？FIELD_SIZES的顺序重要吗？
             f = int(line[0]) - 1
             FIELD_SIZES[f] += 1
-        # print(f"line={line}; f = {f}; ")
+        # todo line=['0', 'other\t0']; f = -1;
+        # print(f"line={line}; f = {f}; ")line
         # break
 # todo field sizes: [25, 131235, 35, 367, 2, 800, 961, 2, 2, 4, 2, 4, 2, 14, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
-print('field sizes:', FIELD_SIZES)
+# print('field sizes:', FIELD_SIZES)
 FIELD_OFFSETS = [sum(FIELD_SIZES[:i]) for i in range(len(FIELD_SIZES))]
+# todo FIELD_OFFSETS=[0, 25, 131260, 131295, 131662, 131664, 132464, 133425, 133427, 133429, 133433, 133435, 133439, 133441, 133455, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460]
+# print(f"FIELD_OFFSETS={FIELD_OFFSETS}")
 INPUT_DIM = sum(FIELD_SIZES)
 OUTPUT_DIM = 1
 STDDEV = 1e-3
@@ -35,6 +39,9 @@ MAXVAL = 1e-3
 
 
 def read_data(file_name):
+    """
+    todo 读取数据，将特征 X 转为稀疏矩阵；输出 X，y
+    """
     X = []
     D = []
     y = []
@@ -56,16 +63,8 @@ def read_data(file_name):
     X = libsvm_2_coo(zip(X, D), (len(X), INPUT_DIM)).tocsr()
     return X, y
 
-
-def shuffle(data):
-    X, y = data
-    ind = np.arange(X.shape[0])
-    for i in range(7):
-        np.random.shuffle(ind)
-    return X[ind], y[ind]
-
-
 def libsvm_2_coo(libsvm_data, shape):
+    """todo 构建特征 X 的稀疏矩阵"""
     coo_rows = []
     coo_cols = []
     coo_data = []
@@ -76,24 +75,76 @@ def libsvm_2_coo(libsvm_data, shape):
         coo_data.extend(d)
         n += 1
         # todo x=[1, 24, 127986, 131294, 131617, 131668, 131963, 133017, 133431, 133433, 133435, 133439, 133441, 133445, 133452, 133461];
+        #  d=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         #  coo_rows=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         #  coo_cols=[1, 24, 127986, 131294, 131617, 131668, 131963, 133017, 133431, 133433, 133435, 133439, 133441, 133445, 133452, 133461];
         #  coo_data=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        # print(f"x={x}; coo_rows={coo_rows}; coo_cols={coo_cols}; coo_data={coo_data}")
+        # print(f"x={x}; d={d}; coo_rows={coo_rows}; coo_cols={coo_cols}; coo_data={coo_data}")
         # break
     coo_rows = np.array(coo_rows)
     coo_cols = np.array(coo_cols)
     coo_data = np.array(coo_data)
-    # todo 当对离散数据进行拟合预测时，往往要对特征进行onehot处理，但onehot是高度稀疏的向量，如果使用List或其他常规的存储方式，对内存占用极大。这时稀疏矩阵类型 coo_matrix / csr_matrix 就派上用场了！
-    #  这两种稀疏矩阵类型csr_matrix存储密度更大，但不易手工构建。coo_matrix存储密度相对小，但易于手工构建，常用方法为先手工构建coo_matrix，如果对内存要求高则使用 tocsr() 方法把coo_matrix转换为csr_matrix类型。
+    # todo 当对离散数据进行拟合预测时，往往要对特征进行onehot处理，但onehot是高度稀疏的向量，如果使用List或其他常规的存储方式，对内存占用极大。
+    #  这时稀疏矩阵类型 coo_matrix / csr_matrix 就派上用场了！这两种稀疏矩阵类型csr_matrix存储密度更大，但不易手工构建。
+    #  coo_matrix存储密度相对小，但易于手工构建，常用方法为先手工构建coo_matrix，如果对内存要求高则使用 tocsr() 方法把coo_matrix转换为csr_matrix类型。
     #  分别定义有那些非零元素，以及各个非零元素对应的row和col，最后定义稀疏矩阵的shape
     return coo_matrix((coo_data, (coo_rows, coo_cols)), shape=shape)
 
 
+def split_data(data, skip_empty=True):
+    """todo 将 read_data() 读取的数据(read_data 读取的数据是一个很长的行向量)，
+          转化为一个field_num(field_num:特征有多少个 field )长度的list，list中的每个元素是所有样本在这个field下的稀疏矩阵
+    """
+    fields = []
+    # todo data=(<312437x133465 sparse matrix of type '<class 'numpy.longlong'>' with 4998992 stored elements in Compressed Sparse Row format>,
+    #  array([0, 0, 0, ..., 0, 0, 0]))
+    #  FIELD_OFFSETS=[0, 25, 131260, 131295, 131662, 131664, 132464, 133425, 133427, 133429, 133433, 133435, 133439, 133441, 133455, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460, 133460]
+    # print(f"data={data} FIELD_OFFSETS={FIELD_OFFSETS}")
+    for i in range(len(FIELD_OFFSETS) - 1):
+        start_ind = FIELD_OFFSETS[i]
+        end_ind = FIELD_OFFSETS[i + 1]
+        if skip_empty and start_ind == end_ind:
+            continue
+        field_i = data[0][:, start_ind:end_ind]
+        fields.append(field_i)
+    fields.append(data[0][:, FIELD_OFFSETS[-1]:])
+    # todo fields=[<312437x25 sparse matrix of type '<class 'numpy.int64'>' with 525452 stored elements in Compressed Sparse Row format>,
+    #  <312437x131235 sparse matrix of type '<class 'numpy.int64'>' with 411854 stored elements in Compressed Sparse Row format>,
+    #  <312437x35 sparse matrix of type '<class 'numpy.int64'>' with 248323 stored elements in Compressed Sparse Row format>,
+    #  <312437x367 sparse matrix of type '<class 'numpy.int64'>' with 358457 stored elements in Compressed Sparse Row format>,
+    #  <312437x2 sparse matrix of type '<class 'numpy.int64'>' with 9246 stored elements in Compressed Sparse Row format>,
+    #  <312437x800 sparse matrix of type '<class 'numpy.int64'>' with 369456 stored elements in Compressed Sparse Row format>,
+    #  <312437x961 sparse matrix of type '<class 'numpy.int64'>' with 574078 stored elements in Compressed Sparse Row format>,
+    #  <312437x2 sparse matrix of type '<class 'numpy.int64'>' with 49 stored elements in Compressed Sparse Row format>,
+    #  <312437x2 sparse matrix of type '<class 'numpy.int64'>' with 2580 stored elements in Compressed Sparse Row format>,
+    #  <312437x4 sparse matrix of type '<class 'numpy.int64'>' with 312438 stored elements in Compressed Sparse Row format>,
+    #  <312437x2 sparse matrix of type '<class 'numpy.int64'>' with 312437 stored elements in Compressed Sparse Row format>,
+    #  <312437x4 sparse matrix of type '<class 'numpy.int64'>' with 312437 stored elements in Compressed Sparse Row format>,
+    #  <312437x2 sparse matrix of type '<class 'numpy.int64'>' with 312437 stored elements in Compressed Sparse Row format>,
+    #  <312437x14 sparse matrix of type '<class 'numpy.int64'>' with 936708 stored elements in Compressed Sparse Row format>,
+    #  <312437x5 sparse matrix of type '<class 'numpy.int64'>' with 603 stored elements in Compressed Sparse Row format>,
+    #  <312437x5 sparse matrix of type '<class 'numpy.int64'>' with 312437 stored elements in Compressed Sparse Row format>]
+    # print(f"fields={fields}")
+    return fields, data[1]
+
+def shuffle(data):
+    X, y = data
+    ind = np.arange(X.shape[0])
+    # todo 这里竟然 shuffer 7次，不是和 shutter 一次结果一样的吗？
+    for i in range(7):
+        np.random.shuffle(ind)
+    return X[ind], y[ind]
+
+
+# todo 为什么做上面堆处理处理，最后喂数据的时候是喂下面这样的形式呢？直接将数据处理成下面这样的形式不好吗？
+#  可能是上面这样的数据形式容易存储，在取batch的时候使用小批量下面这样的数据形式
 def csr_2_input(csr_mat):
+    """todo 最开始的输入应该是：split_data 输出的 list 传给slice，经过 slice 处理还是list，这个list 传给csr_2_input
+         输出稀疏矩阵的 value，索引，shape"""
     if not isinstance(csr_mat, list):
-        # todo 将矩阵转化为 COOrdinate format
+       # todo tocoo() 将矩阵转化为 COOrdinate format
         coo_mat = csr_mat.tocoo()
+        # todo vstack 沿着竖直方向将矩阵堆叠起来。
         indices = np.vstack((coo_mat.row, coo_mat.col)).transpose()
         values = csr_mat.data
         shape = csr_mat.shape
@@ -107,6 +158,7 @@ def csr_2_input(csr_mat):
 
 
 def slice(csr_data, start=0, size=-1):
+    """ todo 从数据中取一个 batch 数据，然后返回： value，index，shape输出 """
     # todo csr_data=([<312437x25 sparse matrix of type '<class 'numpy.int64'>'
     # 	with 525452 stored elements in Compressed Sparse Row format>, <312437x131235 sparse matrix of type '<class 'numpy.int64'>'
     # 	with 411854 stored elements in Compressed Sparse Row format>, <312437x35 sparse matrix of type '<class 'numpy.int64'>'
@@ -141,7 +193,7 @@ def slice(csr_data, start=0, size=-1):
     # 	with 936708 stored elements in Compressed Sparse Row format>, <312437x5 sparse matrix of type '<class 'numpy.int64'>'
     # 	with 603 stored elements in Compressed Sparse Row format>, <312437x5 sparse matrix of type '<class 'numpy.int64'>'
     # 	with 312437 stored elements in Compressed Sparse Row format>]
-    print(f"csr_data={csr_data}; csr_data[0]={csr_data[0]}")
+    # print(f"csr_data={csr_data}; csr_data[0]={csr_data[0]}")
     if not isinstance(csr_data[0], list):
         if size == -1 or start + size >= csr_data[0].shape[0]:
             slc_data = csr_data[0][start:]
@@ -163,20 +215,9 @@ def slice(csr_data, start=0, size=-1):
     return csr_2_input(slc_data), slc_labels
 
 
-def split_data(data, skip_empty=True):
-    fields = []
-    for i in range(len(FIELD_OFFSETS) - 1):
-        start_ind = FIELD_OFFSETS[i]
-        end_ind = FIELD_OFFSETS[i + 1]
-        if skip_empty and start_ind == end_ind:
-            continue
-        field_i = data[0][:, start_ind:end_ind]
-        fields.append(field_i)
-    fields.append(data[0][:, FIELD_OFFSETS[-1]:])
-    return fields, data[1]
-
 
 def init_var_map(init_vars, init_path=None):
+    """todo 根据给定变量的名称，shape，初始化方法，类型对变量初始化"""
     if init_path is not None:
         load_var_map = pkl.load(open(init_path, 'rb'))
         print('load variable map from', init_path, load_var_map.keys())

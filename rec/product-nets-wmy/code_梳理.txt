@@ -1,0 +1,66 @@
+	输入：每个 field 的size，embed_size, layer_sizes=(列表), layer_acts=(列表), drop_out=,
+                 embed_l2=None, layer_l2=, init_path=None, opt_algo='gd', learning_rate=, random_seed=None
+  model
+  	init
+  		X,y,layer_keeps,vars,keep_prob_train,keep_prob_test
+
+  	run 
+  		输入：fetch(loss,opt)，X，y, mode
+  		输出：run.fetch
+  		feed_dict
+  		如果 X 是list
+  			将X的值依次放入feed_dict 中相应的容器里
+  		否则
+  			直接将 数值 喂入容器
+
+  		y是否为空，如果不为空，喂入y
+
+  		是否有 dropout ，如果有
+  			看是训练模式还是test阶段，喂入响应的dropout值
+
+  pnn
+  	init
+  		首先初始化init，
+  		多少个field
+  		多少个field
+  			权重变量列表，需要权重的name，shape，初始化方法，数据类型
+
+  		num_pair
+  		更新deep层的权重变量（w,b），
+  			name，shape，初始化方法，数据类型
+  			输入的维度
+
+  		创建图
+  			是否设定随机种子
+
+  			定义容器X，y，deep层dropout的容器(为什么这里dropout还需要用容器，好像一直都用容器乘)
+
+  			使用util.函数初始化权重变量
+  			使用稀疏矩阵和权重变量相乘，得到wx
+  			reshape 成 -1，field数量，embedding
+  			
+  			定义 上三角矩阵的行号和列号
+  			找到相应行号和列号的embedding向量，相乘相加
+
+  			将embedding 的线性部分和非线性部分 concat
+
+  			deep部分
+  			使用w，b和输入(第一层是concat)，先相乘，后使用util的激活函数，后dropout
+  			后squeeze后sigmoid计算概率
+
+  			使用交叉熵计算损失函数
+  			看layer_l2是否为空，
+  				如果不为空，对embedding加正则（这里用的是wx--这里就是git中所说的稀疏正则对吧？）
+  				然后对deep层每层的权重矩阵加正则
+  			定义优化器，使用util中的函数优化孙损失函数
+
+
+
+
+
+
+
+
+
+
+
