@@ -10,6 +10,19 @@ recommendation/DeepFM/example/data
 recommendation/DeepFM/example/output/
 *.csv
 
+
+# 不同步模型目录
+*.local
+*.index
+*.meta
+*checkpoint
+*.pbtxt
+*.data-00000-of-00001
+*/*/*/model_ckpt/
+*/*/*/*/model_ckpt
+*/*/*/*/20200802
+
+
 # C extensions
 *.so
 
