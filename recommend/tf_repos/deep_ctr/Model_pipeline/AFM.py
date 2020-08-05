@@ -216,6 +216,10 @@ def model_fn(features, labels, mode, params):
         pred = tf.sigmoid(y)
 
     predictions={"prob": pred}
+    # todo 需指定模型的输入和输出，并在tags中包含”serve”，在实际使用中，TF Serving要求导出模型包含”serve”这个tag。此外，还需要指定默认签名，tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY = “serving_default”，此外tf.saved_model.signature_constants定义了三类签名，分别是：
+    # 分类classify
+    # 回归regress
+    # 预测predict
     export_outputs = {tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: tf.estimator.export.PredictOutput(predictions)}
     # Provide an estimator spec for `ModeKeys.PREDICT`
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -225,6 +229,9 @@ def model_fn(features, labels, mode, params):
                 export_outputs=export_outputs)
 
     #------bulid loss------
+    # todo sigmoid_cross_entropy_with_logits(_sentinel=None,labels=None,logits=None,name=None)
+    #  该损失函数的输入不需要对网络的输出进行one hot处理，网络输出即是函数logits参数的输入
+    #  https://blog.csdn.net/m0_37393514/article/details/81393819       -- 看图片的公式便可知道
     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=y, labels=labels)) + \
         l2_reg * tf.nn.l2_loss(Feat_Bias) + l2_reg * tf.nn.l2_loss(Feat_Emb)
 
