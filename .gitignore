@@ -18,10 +18,26 @@ recommendation/DeepFM/example/output/
 *checkpoint
 *.pbtxt
 *.data-00000-of-00001
+*/data/
+*/*/data/
+*/*/*/data/
+*/*/*/*/data/
+*/*/*/*/*/data/
+*/*/*/*/*/*/data/
+*/*/model_ckpt/
 */*/*/model_ckpt/
 */*/*/*/model_ckpt
-*/*/*/*/20200802
-
+*/*/*/*/*/model_ckpt/
+*/*/model/
+*/*/model/
+*/*/*/model/
+*/*/*/*/model/
+*/output/
+*/*/output/
+*/*/*/output/
+*/*/*/*/output/
+*/*/*/*/*/output/
+*/*/*/*/*/*/output/
 
 # C extensions
 *.so

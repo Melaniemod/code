@@ -7,7 +7,6 @@ and <<Product-based Neural Networks for User Response Prediction>> with the fell
 #2 Train pipline using Coustom Estimator by rewriting model_fn
 #3 Support distincted training by TF_CONFIG
 #4 Support export servable model for TensorFlow Serving
-
 by lambdaji
 """
 #from __future__ import absolute_import
@@ -38,24 +37,24 @@ tf.app.flags.DEFINE_string("ps_hosts", '', "Comma-separated list of hostname:por
 tf.app.flags.DEFINE_string("worker_hosts", '', "Comma-separated list of hostname:port pairs")
 tf.app.flags.DEFINE_string("job_name", '', "One of 'ps', 'worker'")
 tf.app.flags.DEFINE_integer("task_index", 0, "Index of task within the job")
-tf.app.flags.DEFINE_integer("num_threads", 8, "Number of threads")
+tf.app.flags.DEFINE_integer("num_threads", 16, "Number of threads")
 tf.app.flags.DEFINE_integer("feature_size", 117581, "Number of features")
 tf.app.flags.DEFINE_integer("field_size", 39, "Number of fields")
 tf.app.flags.DEFINE_integer("embedding_size", 32, "Embedding size")
 tf.app.flags.DEFINE_integer("num_epochs", 1, "Number of epochs")
-tf.app.flags.DEFINE_integer("batch_size", 256, "Number of batch size")
+tf.app.flags.DEFINE_integer("batch_size", 64, "Number of batch size")
 tf.app.flags.DEFINE_integer("log_steps", 1000, "save summary every steps")
 tf.app.flags.DEFINE_float("learning_rate", 0.0005, "learning rate")
 tf.app.flags.DEFINE_float("l2_reg", 0.0001, "L2 regularization")
 tf.app.flags.DEFINE_string("loss_type", 'log_loss', "loss type {square_loss, log_loss}")
 tf.app.flags.DEFINE_string("optimizer", 'Adam', "optimizer type {Adam, Adagrad, GD, Momentum}")
-tf.app.flags.DEFINE_string("deep_layers", '256,128', "deep layers")
-tf.app.flags.DEFINE_string("dropout", '0.8,0.8', "dropout rate")
+tf.app.flags.DEFINE_string("deep_layers", '256,128,64', "deep layers")
+tf.app.flags.DEFINE_string("dropout", '0.5,0.5,0.5', "dropout rate")
 tf.app.flags.DEFINE_boolean("batch_norm", False, "perform batch normaization (True or False)")
 tf.app.flags.DEFINE_float("batch_norm_decay", 0.9, "decay for the moving average(recommend trying decay=0.9)")
-tf.app.flags.DEFINE_string("data_dir", '/Users/wmy/workspace/project/rec/data/dac', "data dir")
+tf.app.flags.DEFINE_string("data_dir", '../../data/criteo/', "data dir")
 tf.app.flags.DEFINE_string("dt_dir", '', "data dt partition")
-tf.app.flags.DEFINE_string("model_dir", '/Users/wmy/workspace/project/code/recommendation/tf_repos/deep_ctr/model_ckpt/criteo/FNN/', "model check point dir")
+tf.app.flags.DEFINE_string("model_dir", './model_ckpt/criteo/PNN', "model check point dir")
 tf.app.flags.DEFINE_string("servable_model_dir", '', "export servable model for TensorFlow Serving")
 tf.app.flags.DEFINE_string("task_type", 'train', "task type {train, infer, eval, export}")
 tf.app.flags.DEFINE_string("model_type", 'Inner', "model type {FNN, Inner, Outer}")
@@ -77,6 +76,7 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
         #  其中分割方式分为两种
         #  1. 如果num_or_size_splits 传入的 是一个整数，那直接在axis=D这个维度上把张量平均切分成几个小张量
         #  2. 如果num_or_size_splits 传入的是一个向量（这里向量各个元素的和要跟原本这个维度的数值相等）就根据这个向量有几个元素分为几项）、
+
         feat_ids, feat_vals = tf.split(id_vals,num_or_size_splits=2,axis=1)
         feat_ids = tf.string_to_number(feat_ids, out_type=tf.int32)
         feat_vals = tf.string_to_number(feat_vals, out_type=tf.float32)
@@ -120,7 +120,6 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
     #return tf.reshape(batch_ids,shape=[-1,field_size]), tf.reshape(batch_vals,shape=[-1,field_size]), batch_labels
     return batch_features, batch_labels
 
-
 def model_fn(features, labels, mode, params):
     """Bulid Model function f(x) for Estimator."""
     #------hyperparameters----
@@ -130,9 +129,9 @@ def model_fn(features, labels, mode, params):
     l2_reg = params["l2_reg"]
     learning_rate = params["learning_rate"]
     #optimizer = params["optimizer"]
-    layers = map(int, params["deep_layers"].split(','))
-    dropout = map(float, params["dropout"].split(','))
-    num_pairs = field_size * (field_size - 1) / 2
+    layers = list(map(int, params["deep_layers"].split(',')))
+    dropout = list(map(float, params["dropout"].split(',')))
+    num_pairs = int(field_size * (field_size - 1) / 2)
 
     #------bulid weights------
     Global_Bias = tf.get_variable(name='bias', shape=[1], initializer=tf.constant_initializer(0.0))
@@ -154,14 +153,17 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope("Linear-part"):
         feat_wgts = tf.nn.embedding_lookup(Feat_Bias, feat_ids)         # None * F * 1
         y_linear = tf.reduce_sum(tf.multiply(feat_wgts, feat_vals),1)
+    # todo y_linear= Tensor("Linear-part/Sum:0", shape=(?,), dtype=float32);
+    #  这里非线性项输出的是一个数值，而非一个向量
+    print("y_linear=",y_linear)
 
+    # todo 在博客 https://www.cnblogs.com/Jesee/p/11129251.html 中向量 z,p 都是embedding 后的向量，这里Product-layer只用了一个权重矩阵，z,p 是没做 embedding 的向量
+    #  原始论文确实用的 embedding 相乘的
     with tf.variable_scope("Embedding-layer"):
         embeddings = tf.nn.embedding_lookup(Feat_Emb, feat_ids)         # None * F * K
         feat_vals = tf.reshape(feat_vals, shape=[-1, field_size, 1])
         embeddings = tf.multiply(embeddings, feat_vals)                 # None * F * K
 
-    # todo 在博客 https://www.cnblogs.com/Jesee/p/11129251.html 中向量 z,p 都是embedding 后的向量，这里Product-layer只用了一个权重矩阵，z,p 是没做 embedding 的向量
-    #  原始论文确实用的 embedding 相乘的
     with tf.variable_scope("Product-layer"):
         if FLAGS.model_type == 'FNN':
             deep_inputs = tf.reshape(embeddings,shape=[-1,field_size*embedding_size])
@@ -172,18 +174,18 @@ def model_fn(features, labels, mode, params):
                 for j in range(i+1, field_size):
                     row.append(i)
                     col.append(j)
+            # print("row=",row)
             p = tf.gather(embeddings, row, axis=1)
             q = tf.gather(embeddings, col, axis=1)
-            # todo num_pairs=741.0
             #p = tf.reshape(p, [-1, num_pairs, embedding_size])
             #q = tf.reshape(q, [-1, num_pairs, embedding_size])
-            inner = tf.reshape(tf.reduce_sum(p * q, [-1]), [-1, int(num_pairs)])                                        # None * (F*(F-1)/2)
+            inner = tf.reshape(tf.reduce_sum(p * q, [-1]), [-1, num_pairs])                                         # None * (F*(F-1)/2)
             # todo p * q=Tensor("Product-layer/mul_1:0", shape=(?, 741, 32), dtype=float32)；
             #  p=Tensor("Product-layer/GatherV2:0", shape=(?, 741, 32), dtype=float32);
             #  inner=Tensor("Product-layer/Reshape:0", shape=(?, 741), dtype=float32)
             #  tf.reduce_sum(p * q, [-1])=Tensor("Product-layer/Sum_1:0", shape=(?, 741), dtype=float32)
-            # print(f"p * q={p * q}；p={p}; inner={inner}；tf.reduce_sum(p * q, [-1])={tf.reduce_sum(p * q, [-1])}")
-            deep_inputs = tf.concat([tf.reshape(embeddings,shape=[-1,field_size*embedding_size]), inner], 1)	# None * ( F*K+F*(F-1)/2 )
+            # print(f"p * q={p * q}；p={p}; inner={inner}；tf.reduce_sum(p * q, [-1])={tf.reduce_sum(p * q, [-1])}")                                    # None * (F*(F-1)/2)
+            deep_inputs = tf.concat([tf.reshape(embeddings,shape=[-1,field_size*embedding_size]), inner], 1)    # None * ( F*K+F*(F-1)/2 )
         elif FLAGS.model_type == 'Outer':             #ERROR: NOT ready yet
             row = []
             col = []
@@ -207,8 +209,8 @@ def model_fn(features, labels, mode, params):
             #  einsum('ii', m)  #  output[j,i] = trace(m) = sum_i m[i, i]
             #  #  Batch matrix multiplication
             #  einsum('aij,ajk->aik', s, t)  #  out[a,i,k] = sum_j s[a,i,j] * t[a, j, k]
-            outer = tf.reshape(tf.einsum('api,apj->apij', p, q), [-1, num_pairs*embedding_size*embedding_size])	# None * (F*(F-1)/2*K*K)
-            deep_inputs = tf.concat([tf.reshape(embeddings,shape=[-1,field_size*embedding_size]), outer], 1)	# None * ( F*K+F*(F-1)/2*K*K )
+            outer = tf.reshape(tf.einsum('api,apj->apij', p, q), [-1, num_pairs*embedding_size*embedding_size])    # None * (F*(F-1)/2*K*K)
+            deep_inputs = tf.concat([tf.reshape(embeddings,shape=[-1,field_size*embedding_size]), outer], 1)    # None * ( F*K+F*(F-1)/2*K*K )
 
 
     with tf.variable_scope("Deep-part"):
@@ -217,20 +219,18 @@ def model_fn(features, labels, mode, params):
         else:
             train_phase = False
 
-        print(f"layers={list(layers)}")
-        for i in range(len(list(layers))):
+        for i in range(len(layers)):
             deep_inputs = tf.contrib.layers.fully_connected(inputs=deep_inputs, num_outputs=layers[i], \
                 weights_regularizer=tf.contrib.layers.l2_regularizer(l2_reg), scope='mlp%d' % i)
 
             if FLAGS.batch_norm:
-                deep_inputs = batch_norm_layer(deep_inputs, train_phase=train_phase, scope_bn='bn_%d' %i)   	#放在RELU之后 https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md#bn----before-or-after-relu
+                deep_inputs = batch_norm_layer(deep_inputs, train_phase=train_phase, scope_bn='bn_%d' %i)       #放在RELU之后 https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md#bn----before-or-after-relu
             if mode == tf.estimator.ModeKeys.TRAIN:
                 deep_inputs = tf.nn.dropout(deep_inputs, keep_prob=dropout[i])                                  #Apply Dropout after all BN layers and set dropout=0.8(drop_ratio=0.2)
                 #deep_inputs = tf.layers.dropout(inputs=deep_inputs, rate=dropout[i], training=mode == tf.estimator.ModeKeys.TRAIN)
 
         y_deep = tf.contrib.layers.fully_connected(inputs=deep_inputs, num_outputs=1, activation_fn=tf.identity, \
             weights_regularizer=tf.contrib.layers.l2_regularizer(l2_reg), scope='deep_out')
-
         y_d = tf.reshape(y_deep,shape=[-1])
 
     with tf.variable_scope("PNN-out"):
@@ -461,9 +461,6 @@ def main(_):
         serving_input_receiver_fn = tf.estimator.export.build_raw_serving_input_receiver_fn(feature_spec)
         Estimator.export_savedmodel(FLAGS.servable_model_dir, serving_input_receiver_fn)
 
-    print("main over")
-
 if __name__ == "__main__":
     tf.logging.set_verbosity(tf.logging.INFO)
-    # tf.app.run()
-    main(None)
+    tf.app.run()

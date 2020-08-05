@@ -107,8 +107,10 @@ def model_fn(features, labels, mode, params):
     learning_rate = params["learning_rate"]
     #batch_norm_decay = params["batch_norm_decay"]
     #optimizer = params["optimizer"]
-    layers  = map(int, params["deep_layers"].split(','))
-    dropout = map(float, params["dropout"].split(','))
+    # layers  = map(int, params["deep_layers"].split(','))
+    # dropout = map(float, params["dropout"].split(','))
+    layers  = list(map(int, params["deep_layers"].split(',')))
+    dropout = list(map(float, params["dropout"].split(',')))
 
     #------bulid weights------
     FM_B = tf.get_variable(name='fm_bias', shape=[1], initializer=tf.constant_initializer(0.0))
@@ -125,6 +127,8 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope("First-order"):
         feat_wgts = tf.nn.embedding_lookup(FM_W, feat_ids)              # None * F * 1
         y_w = tf.reduce_sum(tf.multiply(feat_wgts, feat_vals),1)
+        #  todo y_w =  Tensor("First-order/Sum:0", shape=(?,), dtype=float32);这里是一个数，别的一些 DeepFM 的代码中一阶项是一个向量
+        print("y_w = ",y_w)
 
     with tf.variable_scope("Second-order"):
         embeddings = tf.nn.embedding_lookup(FM_V, feat_ids)             # None * F * K

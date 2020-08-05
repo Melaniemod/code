@@ -38,11 +38,11 @@ tf.app.flags.DEFINE_string("ps_hosts", '', "Comma-separated list of hostname:por
 tf.app.flags.DEFINE_string("worker_hosts", '', "Comma-separated list of hostname:port pairs")
 tf.app.flags.DEFINE_string("job_name", '', "One of 'ps', 'worker'")
 tf.app.flags.DEFINE_integer("task_index", 0, "Index of task within the job")
-tf.app.flags.DEFINE_integer("num_threads", 10, "Number of threads")
-tf.app.flags.DEFINE_integer("feature_size", 0, "Number of features")
-tf.app.flags.DEFINE_integer("field_size", 0, "Number of fields")
+tf.app.flags.DEFINE_integer("num_threads", 8, "Number of threads")
+tf.app.flags.DEFINE_integer("feature_size", 117581, "Number of features")
+tf.app.flags.DEFINE_integer("field_size", 39, "Number of fields")
 tf.app.flags.DEFINE_integer("embedding_size", 256, "Embedding size")
-tf.app.flags.DEFINE_integer("num_epochs", 10, "Number of epochs")
+tf.app.flags.DEFINE_integer("num_epochs", 1, "Number of epochs")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of batch size")
 tf.app.flags.DEFINE_integer("log_steps", 1000, "save summary every steps")
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "learning rate")
@@ -51,9 +51,9 @@ tf.app.flags.DEFINE_string("loss_type", 'log_loss', "loss type {square_loss, log
 tf.app.flags.DEFINE_string("optimizer", 'Adam', "optimizer type {Adam, Adagrad, GD, Momentum}")
 tf.app.flags.DEFINE_string("attention_layers", '256', "Attention Net mlp layers")
 tf.app.flags.DEFINE_string("dropout", '1.0,0.5', "dropout rate")
-tf.app.flags.DEFINE_string("data_dir", '', "data dir")
+tf.app.flags.DEFINE_string("data_dir", '../../data/criteo/', "data dir")
 tf.app.flags.DEFINE_string("dt_dir", '', "data dt partition")
-tf.app.flags.DEFINE_string("model_dir", '', "model check point dir")
+tf.app.flags.DEFINE_string("model_dir", './model_ckpt/criteo/AFM', "model check point dir")
 tf.app.flags.DEFINE_string("servable_model_dir", '', "export servable model for TensorFlow Serving")
 tf.app.flags.DEFINE_string("task_type", 'train', "task type {train, infer, eval, export}")
 tf.app.flags.DEFINE_boolean("clear_existing_model", False, "clear existing model or not")
@@ -65,10 +65,53 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
         #columns = tf.decode_csv(value, record_defaults=CSV_COLUMN_DEFAULTS)
         #features = dict(zip(CSV_COLUMNS, columns))
         #labels = features.pop(LABEL_COLUMN)
+        # todo tf.string_split函数
+        #  tf.string_split(
+        #      source,
+        #      delimiter=' ',
+        #      skip_empty=True
+        #  )
+        #  '''
+        #  @函数意义：将基于 delimiter 的 source 的元素拆分为 SparseTensor
+        #  @source：需要操作的对象，一般是[字符串或者多个字符串]构成的列表；---注意是列表哦！！！
+        #  @delimiter:分割符,默认空字符串
+        #  @skip_empty：默认True，暂时没用到过
+        #  '''
+        #  demo
+        #  #  当对象是一个字符串
+        #  a = 'we do it'
+        #  tf.string_split([a])
+        #  #  返回值如下
+        #  SparseTensorValue(indices=array([[0, 0],[0, 1],[0, 2]]),
+        #                     values=array(['we', 'do', 'it'], dtype=object),
+        #                       dense_shape=array([1, 3]))
+        #  #  当对象是多个字符串
+        #  b = 'we can do it'
+        #  c = [a,b]
+        #  tf.string_split(c)
+        #  #  返回值如下
+        #  SparseTensorValue(indices=array([[0, 0],
+        #         [0, 1],
+        #         [0, 2],
+        #         [1, 0],
+        #         [1, 1],
+        #         [1, 2],
+        #         [1, 3]], dtype=int64), values=array(['we', 'do', 'it', 'we', 'can', 'do', 'it'], dtype=object), dense_shape=array([2, 4], dtype=int64))
+        #  可以看到几个要点：
+        #  1.传入的元素是字符串，但是必须是列表包括进去，不然会报格式错误！
+        #  2.返回了稀疏矩阵(SparseTensorValue)的下标(indices)，和值(value),以及类型，和输入数据的维度(dense_shape)
+        #  3.到这一步已经很明显了，这个函数有split()的作用，可以从value获取我们要的东西。
+        #  返回值有三个参数，一个是indices,一个是values,一个是dense_shape.
         columns = tf.string_split([line], ' ')
         labels = tf.string_to_number(columns.values[0], out_type=tf.float32)
         splits = tf.string_split(columns.values[1:], ':')
+        # todo 这里没有index就直接reshape成
         id_vals = tf.reshape(splits.values,splits.dense_shape)
+        # todo splits= SparseTensor(indices=Tensor("StringSplit_1:0", shape=(?, 2), dtype=int64), values=Tensor("StringSplit_1:1", shape=(?,), dtype=string), dense_shape=Tensor("StringSplit_1:2", shape=(2,), dtype=int64))
+        #  Tensor("StringSplit_1:1", shape=(?,), dtype=string)
+        #  Tensor("StringSplit_1:2", shape=(2,), dtype=int64)
+        #  Tensor("Reshape:0", shape=(?, ?), dtype=string)
+        print("splits=",splits,splits.values,splits.dense_shape,id_vals)
         feat_ids, feat_vals = tf.split(id_vals,num_or_size_splits=2,axis=1)
         feat_ids = tf.string_to_number(feat_ids, out_type=tf.int32)
         feat_vals = tf.string_to_number(feat_vals, out_type=tf.float32)
@@ -105,8 +148,8 @@ def model_fn(features, labels, mode, params):
     l2_reg = params["l2_reg"]
     learning_rate = params["learning_rate"]
     #optimizer = params["optimizer"]
-    layers = map(int, params["attention_layers"].split(','))
-    dropout = map(float, params["dropout"].split(','))
+    layers = list(map(int, params["attention_layers"].split(',')))
+    dropout = list(map(float, params["dropout"].split(',')))
 
     #------bulid weights------
     Global_Bias = tf.get_variable(name='bias', shape=[1], initializer=tf.constant_initializer(0.0))
@@ -129,11 +172,13 @@ def model_fn(features, labels, mode, params):
         feat_vals = tf.reshape(feat_vals, shape=[-1, field_size, 1])
         embeddings = tf.multiply(embeddings, feat_vals) #vij*xi
 
-        num_interactions = field_size*(field_size-1)/2
+        num_interactions = int(field_size*(field_size-1)/2)
         element_wise_product_list = []
         for i in range(0, field_size):
             for j in range(i+1, field_size):
                 element_wise_product_list.append(tf.multiply(embeddings[:,i,:], embeddings[:,j,:]))
+        # todo tf.stack其作用类似于tf.concat，都是拼接两个张量，而不同之处在于，tf.concat拼接的是除了拼接维度axis外其他维度的shape完全相同的张量，
+        #  并且产生的张量的阶数不会发生变化，而tf.stack则会在新的张量阶上拼接，产生的张量的阶数将会增加，
         element_wise_product = tf.stack(element_wise_product_list) 								# (F*(F-1)) * None * K
         element_wise_product = tf.transpose(element_wise_product, perm=[1,0,2]) 				# None * (F*(F-1)) * K
         #interactions = tf.reduce_sum(element_wise_product, 2, name="interactions")
@@ -143,9 +188,12 @@ def model_fn(features, labels, mode, params):
         for i in range(len(layers)):
             deep_inputs = tf.contrib.layers.fully_connected(inputs=deep_inputs, num_outputs=layers[i], \
                 weights_regularizer=tf.contrib.layers.l2_regularizer(l2_reg), scope='mlp%d' % i)
-
+        # todo deep_inputs= Tensor("Attention-part/mlp0/Relu:0", shape=(?, 256), dtype=float32)
+        # print("deep_inputs=",deep_inputs)
         aij = tf.contrib.layers.fully_connected(inputs=deep_inputs, num_outputs=1, activation_fn=tf.identity, \
             weights_regularizer=tf.contrib.layers.l2_regularizer(l2_reg), scope='attention_out')# (None * (F*(F-1))) * 1
+        # todo aij= Tensor("Attention-part/attention_out/Identity:0", shape=(?, 1), dtype=float32)
+        # print('aij=',aij)
 
         #aij_reshape = tf.reshape(aij, shape=[-1, num_interactions, 1])							# None * (F*(F-1)) * 1
         aij_softmax = tf.nn.softmax(tf.reshape(aij, shape=[-1, num_interactions, 1]), dim=1, name='attention_soft')
