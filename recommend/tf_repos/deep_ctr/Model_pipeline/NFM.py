@@ -217,7 +217,8 @@ def model_fn(features, labels, mode, params):
     export_outputs = {tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: tf.estimator.export.PredictOutput(predictions)}
     # Provide an estimator spec for `ModeKeys.PREDICT`
     if mode == tf.estimator.ModeKeys.PREDICT:
-        # todo tf.estimator.EstimatorSpec -- https://blog.csdn.net/qq_32806793/article/details/85010302
+        # todo tf.estimator.EstimatorSpec -- h
+        #  ttps://blog.csdn.net/qq_32806793/article/details/85010302
         #  主要参数说明
         #  eval_metric_ops：Dict of metric results keyed by name.
         #  predictions: Predictions Tensor or dict of Tensor.(模型的预测输出，主要是在infer阶段，在分类是：预测的类别，在文本生成是：生成的文本)
@@ -389,40 +390,7 @@ def main(_):
         log_step_count_steps=FLAGS.log_steps, save_summary_steps=FLAGS.log_steps)
     Estimator = tf.estimator.Estimator(model_fn=model_fn, model_dir=FLAGS.model_dir, params=model_params, config=config)
 
-    # todo tf.estimator.train_and_evaluate(estimator, train_spec, eval_spec)
-    #  其中 estimator 是一个 tf.estimator.Estimator 对象，用于指定模型函数以及其它相关参数；
-    #  train_spec 是一个 tf.estimator.TrainSpec 对象，用于指定训练的输入函数以及其它参数；
-    #  eval_spec 是一个 tf.estimator.EvalSpec 对象，用于指定验证的输入函数以及其它参数。
-    #  &
-    #  tf.estimator.Estimator(model_fn, model_dir=None, config=None,params=None, warm_start_from=None)
-    #  其中 model_fn 是模型函数；model_dir 是训练时模型保存的路径；config 是 tf.estimator.RunConfig 的配置对象；
-    #  params 是传入 model_fn 的超参数字典；warm_start_from 或者是一个预训练文件的路径，或者是一个 tf.estimator.WarmStartSettings 对象，用于完整的配置热启动参数。
-    #  &
-    #  tf.estimator.TrainSpec(input_fn, max_steps, hooks)
-    #  其中 input_fn 用来提供训练时的输入数据；max_steps 指定总共训练多少步；hooks 是一个 tf.train.SessionRunHook 对象，用来配置分布式训练等参数。
-    #  &
-    #  tf.estimator.EvalSpec(input_fn,steps=100,name=None,hooks=None,exporters=None,start_delay_secs=120,throttle_secs=600)
-    #  其中 input_fn 用来提供验证时的输入数据；steps 指定总共验证多少步（一般设定为 None 即可）；hooks 用来配置分布式训练等参数；
-    #  exporters 是一个 Exporter 迭代器，会参与到每次的模型验证；start_delay_secs 指定多少秒之后开始模型验证；
-    #  throttle_secs 指定多少秒之后重新开始新一轮模型验证（当然，如果没有新的模型断点保存，则该数值秒之后不会进行模型验证，因此这是新一轮模型验证需要等待的最小秒数）。
-    #  &
-    #  定义模型函数 model_fn，返回类 tf.estimator.EstimatorSpec 的一个实例。
-    #  def create_model_fn(features, labels, mode, params=None):
-    #     pass
-    #     return tf.estimator.EstimatorSpec(mode=mode,predictions=prediction_dict,loss=loss,train_op=train_op,...)
-    #  其中 features，labels 可以是一个张量，也可以是由张量组成的一个字典；mode 指定训练模式，可以取 （TRAIN, EVAL, PREDICT）三者之一；params 是一个（可要可不要的）字典，指定其它超参数。
-    #  model_fn 必须定义模型的预测结果、损失、优化器等，它返回类 tf.estimator.EstimatorSpec 的一个对象。
-    #  &
-    #  tf.estimator.EstimatorSpec(mode,predictions=None,loss=None,train_op=None,eval_metric_ops=None,export_outputs=None,training_chief_hooks=None,training_hooks=None,scaffold=None,evaluation_hooks=None,prediction_hooks=None)
-    #  其中 mode 指定当前是处于训练、验证还是预测状态；predictions 是预测的一个张量，或者是由张量组成的一个字典；loss 是损失张量；train_op 指定优化操作；
-    #  eval_metric_ops 指定各种评估度量的字典，这个字典的值必须是如下两种形式：Metric 类的实例；调用某个评估度量函数的结果对 (metric_tensor, update_op)；
-    #  参数 export_outputs 只用于模型保存，描述了导出到 SavedModel 的输出格式；参数 scaffold 是一个 tf.train.Scaffold 对象，可以在训练阶段初始化、保存等时使用。
-    #  &
-    #  定义输入函数 input_fn，返回如下两种格式之一：
-    #  tf.data.Dataset 对象：这个对象的输出必须是元组队 (features, labels)，而且必须满足下一条返回格式的同等约束；
-    #  元组 (features, labels)：features 以及 labels 都必须是一个张量或由张量组成的字典。
-    #  &
-    #  https://www.jianshu.com/p/b8930fa13ea7
+    # todo https://www.jianshu.com/p/b8930fa13ea7
     #  &
     #  https://www.cnblogs.com/zongfa/p/10149483.html
     if FLAGS.task_type == 'train':

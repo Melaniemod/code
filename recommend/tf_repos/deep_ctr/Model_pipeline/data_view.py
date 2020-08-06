@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as  np
 
 
+# todo py36
 def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
     print('Parsing', filenames)
     def decode_libsvm(line):
@@ -15,10 +16,12 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
         feat_ids, feat_vals = tf.split(id_vals,num_or_size_splits=2,axis=1)
         feat_ids = tf.string_to_number(feat_ids, out_type=tf.int32)
         feat_vals = tf.string_to_number(feat_vals, out_type=tf.float32)
-        return {"feat_ids": feat_ids, "feat_vals": feat_vals}, labels,columns,splits.values,splits.dense_shape,splits
+        return {"feat_ids": feat_ids, "feat_vals": feat_vals}, labels,columns,splits.values,splits.dense_shape,splits,id_vals
 
     # Extract lines from input files using the Dataset API, can pass one filename or filename list
     dataset = tf.data.TextLineDataset(filenames).map(decode_libsvm, num_parallel_calls=10).prefetch(500000)    # multi-thread pre-process then prefetch
+    dataset = tf.data.TextLineDataset(filenames).map(decode_libsvm, num_parallel_calls=10).prefetch(500000)
+    print('1111111111e')
 
     # Randomizes input using a window of 256 elements (read into memory)
     if perform_shuffle:
@@ -30,14 +33,16 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
 
     #return dataset.make_one_shot_iterator()
     iterator = dataset.make_one_shot_iterator()
-    batch_features, batch_labels,columns,value,shape,splits = iterator.get_next()
+    batch_features, batch_labels,columns,value,shape,splits,id_vals = iterator.get_next()
     #return tf.reshape(batch_ids,shape=[-1,field_size]), tf.reshape(batch_vals,shape=[-1,field_size]), batch_labels
-    return batch_features, batch_labels,columns,value,shape,splits
+    return batch_features, batch_labels,columns,value,shape,splits,id_vals
+
 
 
 data_file = '/Users/wmy/workspace/project/rec/data/criteo/te.libsvm'
+data_file = ['../../data/criteo/te.libsvm']
 
-feat,label,columns,value,shape,splits = input_fn(data_file)
+feat,label,columns,value,shape,splits,id_vals = input_fn(data_file)
 
 
 
@@ -49,8 +54,8 @@ with tf.Session() as sess:
     print("columns=",sess.run(columns))
     print("splits=",sess.run(splits))
 
-    value,shape,columns,splits = sess.run((value,shape,columns,splits))
-    print("value=",value.tolist(),"value.shape=",value.shape,"shape=",shape,"columns=",columns,"splits=",splits)
+    value,shape,columns,splits,id_vals = sess.run((value,shape,columns,splits,id_vals))
+    print("value=",value.tolist(),"\nvalue.shape=",value.shape,"\nshape=",shape,"\ncolumns=",columns,"\nsplits=",splits,'\nid_vals=',id_vals,'id_vals.shape',id_vals.shape)
     # todo 数据如下
 
 
@@ -105,4 +110,55 @@ splits= SparseTensorValue(indices=array([[ 0,  0,  0],
        [31, 37,  1],
        [31, 38,  0],
        [31, 38,  1]]), values=array([b'1', b'0.05', b'2', ..., b'1', b'109982', b'1'], dtype=object), dense_shape=array([32, 39,  2]))
+id_vals= [[[b'1' b'0.05']
+  [b'2' b'4.180763']
+  [b'3' b'0.08']
+  ...
+  [b'100320' b'1']
+  [b'109930' b'1']
+  [b'109982' b'1']]
+
+ [[b'1' b'0.1']
+  [b'2' b'0.003317']
+  [b'3' b'0']
+  ...
+  [b'100316' b'1']
+  [b'109932' b'1']
+  [b'110004' b'1']]
+
+ [[b'1' b'0']
+  [b'2' b'1.640133']
+  [b'3' b'0.01']
+  ...
+  [b'100316' b'1']
+  [b'109932' b'1']
+  [b'110004' b'1']]
+
+ ...
+
+ [[b'1' b'0']
+  [b'2' b'1.505804']
+  [b'3' b'0.09']
+  ...
+  [b'100316' b'1']
+  [b'109930' b'1']
+  [b'109982' b'1']]
+
+ [[b'1' b'0']
+  [b'2' b'0.004975']
+  [b'3' b'0.19']
+  ...
+  [b'101302' b'1']
+  [b'109933' b'1']
+  [b'110713' b'1']]
+
+ [[b'1' b'2.4']
+  [b'2' b'0.004975']
+  [b'3' b'0.05']
+  ...
+  [b'100313' b'1']
+  [b'109939' b'1']
+  [b'109982' b'1']]]
+id_vals.shape (32, 39, 2)
 '''
+

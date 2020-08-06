@@ -1,0 +1,183 @@
+传入的参数
+flags
+	dist_mode
+	ps_hosts
+	worker_hosts
+	job_name
+	task_index
+	num_threads
+	feature_size
+	field_size
+	embedding_size
+	num_epochs
+	batch_size
+	log_steps
+	learning_rate
+	l2_reg
+	loss_type
+	optimizer
+	deep_layers
+	dropout
+	batch_norm
+	batch_norm_decay
+	data_dir
+	dt_dir
+	model_dir
+	servable_model_dir
+	task_type
+	clear_existing_model
+
+input_fn 
+	输入：filenames, batch_size=32, num_epochs=1, perform_shuffle=False
+	输出：批特征，批label
+
+	decode_libsvm
+		输入：行
+		先用' 'split，取label
+		后用':'split，根据value和shape reshape得到特征的id_val（其实就是将原来的index value形式的数据转为 正常的矩阵形式）
+		将上面的矩阵按照第2个维度平均分为2个向量（这里是一行一行的处理，数据是一个1*39*2的向量），这样便得到特征的 ID 和 value
+		分别将 ID 和 value 转为number
+		返回 feature{id:,value}	,label
+
+	读取数据，坐上面的 map 处理，pretch
+
+	是否shuffle
+
+	数据repeat
+	指定batch 大小
+
+	创建迭代器
+	取一个batch
+	返回 batch_feature,batch_label
+
+model_fn:
+	输入：features, labels, mode, params
+	解析参数：
+		field_size
+		feature_size
+		embedding_size
+		l2_reg
+		learning_rate
+		layers
+		dropout
+
+	创建可训练的权重参数
+		Global_Bias
+		Feat_Bias（线性部分的b）
+		Feat_Emb
+
+	取出feat_id,feat_value并 reshape
+
+	线性部分的命名空间
+		线性部分的b和特征ID相乘（查找）
+		将特征 value 和线性部分的b 相乘相加（输出一个是个数值）
+
+	交叉部分命名空间
+		计算向量的embedding
+		将特征 value reshape 后和 embedding 相乘，得到和value 乘积后的embedding
+
+		计算上三角embedding 的两两乘积，(F*(F-1)/2) * None * K
+		将两两乘积 先stack 一下后 reshape 成 None * (F*(F-1)/2) * K
+
+	attention 命名空间：（attention层是一个一层的全连接神经网络）
+		先将两两乘积 reshape 成 (None * (F*(F-1)/2)))* K 的一个输入层
+		每一层是一个全连接的网络
+			（输入是: (None * (F*(F-1)/2)))* K；输出是 lay[i]=256。）
+
+		后增加一个全连接层（输入是：(None * (F*(F-1)/2))) * lay[-1]；输出是：(None * (F*(F-1)/2))) * 1。）
+
+		将两两交叉的权重 reshape 为 None * (F*(F-1)/2)) * 1，后做softMax
+		如果在训练阶段
+			增加一个dropout
+
+	attention-pooling命名空间
+		将 两两交叉的权重 和 两两乘积 相乘相加（得到None * K）
+		如果在训练阶段，做一个drop out
+
+		增加一个带l2正则全连接层（输入：None * K，输出：None * 1）
+		reshape 成一个维度 None
+
+	输出层
+		先将全局b扩展成 attention输出层的形式
+		将全局的 b + 线性部分的输出 + attention部分的输出
+		做一个sigmoid
+
+	建立预测值字典{prob:pred}
+	输出指定签名
+
+	如果是预测阶段
+		返回预测阶段的 EstimatorSpec 对象(mode,predictions,输出指定签名)
+
+	损失函数 = y的交叉熵 + (线性部分的 + emebbdding部分的)范数
+
+	建立 评估指标{auc:auc}
+	如果模型在 eval 阶段
+		返回评估阶段的 EstimatorSpec 对象(mdoe,predictions,loss,评估指标)
+
+	看传入的是 Adam，Adagrad,Momentum，ftrl中的哪一种优化算法
+	根据优化算法建立优化器
+
+	如果在训练阶段
+		返回 训练阶段的 EstimatorSpec 对象（mode，predictions,loss,train_op）
+
+
+set_dist_env()
+
+main(_)
+	如果模型目录为空
+		创建 T-1 日期的模型目录
+
+	使用glob.glob查找数据目录下的 训练、验证、测试文件列表
+
+	是否清楚现有的模型
+		shutil.rmtree
+
+	模型超参数{field_size
+		feature_size
+		embedding_size
+		learning_rate
+		l2_reg
+		attention_layers
+		dropout
+	}
+
+	执行环境等信息
+	创建Estimator（参数model_fn,model_dir,params,config）
+
+	根据，train，eval,infer,export阶段
+	train
+		train_spec(输入等)
+		eval_spec(输入)
+		train_and_evaluate
+	eval
+		eval
+	infer：
+		predict
+		数据写入
+	export
+		serving_input_receiver_fn  -- 直接使用输入数据
+		模型导出 export_savedmodel
+
+main
+	设置日志级别
+	运行
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

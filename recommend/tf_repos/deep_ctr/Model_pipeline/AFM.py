@@ -111,7 +111,15 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
         #  Tensor("StringSplit_1:1", shape=(?,), dtype=string)
         #  Tensor("StringSplit_1:2", shape=(2,), dtype=int64)
         #  Tensor("Reshape:0", shape=(?, ?), dtype=string)
-        print("splits=",splits,splits.values,splits.dense_shape,id_vals)
+        # print("splits=",splits,splits.values,splits.dense_shape,id_vals)
+        # todo  tf.split(value,num_or_size_splits,axis=0,num=None,name='split')
+        #  https://blog.csdn.net/mls0311/article/details/82052472
+        #  value：准备切分的张量
+        #  num_or_size_splits：准备切成几份
+        #  axis : 准备在第几个维度上进行切割
+        #  其中分割方式分为两种
+        #  1. 如果num_or_size_splits 传入的 是一个整数，那直接在axis=D这个维度上把张量平均切分成几个小张量
+        #  2. 如果num_or_size_splits 传入的是一个向量（这里向量各个元素的和要跟原本这个维度的数值相等）就根据这个向量有几个元素分为几项）
         feat_ids, feat_vals = tf.split(id_vals,num_or_size_splits=2,axis=1)
         feat_ids = tf.string_to_number(feat_ids, out_type=tf.int32)
         feat_vals = tf.string_to_number(feat_vals, out_type=tf.float32)
@@ -124,7 +132,7 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
 
     # Extract lines from input files using the Dataset API, can pass one filename or filename list
     dataset = tf.data.TextLineDataset(filenames).map(decode_libsvm, num_parallel_calls=10).prefetch(500000)    # multi-thread pre-process then prefetch
-
+    print("dataset ---")
     # Randomizes input using a window of 256 elements (read into memory)
     if perform_shuffle:
         dataset = dataset.shuffle(buffer_size=256)
@@ -141,7 +149,11 @@ def input_fn(filenames, batch_size=32, num_epochs=1, perform_shuffle=False):
 
 def model_fn(features, labels, mode, params):
     """Bulid Model function f(x) for Estimator."""
+    # todo  mode是如何传过去的呢？
     #------hyperparameters----
+    # todo mode,ModeKeys eval train eval infer
+    #  为什么 task_type = train的时候，mode 也是eval???
+    print("mode,ModeKeys",mode,tf.estimator.ModeKeys.TRAIN,tf.estimator.ModeKeys.EVAL,tf.estimator.ModeKeys.PREDICT)
     field_size = params["field_size"]
     feature_size = params["feature_size"]
     embedding_size = params["embedding_size"]
@@ -170,7 +182,9 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope("Pairwise-Interaction-Layer"):
         embeddings = tf.nn.embedding_lookup(Feat_Emb, feat_ids) # None * F * K
         feat_vals = tf.reshape(feat_vals, shape=[-1, field_size, 1])
-        embeddings = tf.multiply(embeddings, feat_vals) #vij*xi
+        embeddings = tf.multiply(embeddings, feat_vals) #vij*xi      None * F * K
+        # todo Tensor("Pairwise-Interaction-Layer/Mul:0", shape=(?, 39, 256), dtype=float32)
+        # print("Pairwise-Interaction-Layer-embeddings",embeddings)
 
         num_interactions = int(field_size*(field_size-1)/2)
         element_wise_product_list = []
@@ -180,6 +194,8 @@ def model_fn(features, labels, mode, params):
         # todo tf.stack其作用类似于tf.concat，都是拼接两个张量，而不同之处在于，tf.concat拼接的是除了拼接维度axis外其他维度的shape完全相同的张量，
         #  并且产生的张量的阶数不会发生变化，而tf.stack则会在新的张量阶上拼接，产生的张量的阶数将会增加，
         element_wise_product = tf.stack(element_wise_product_list) 								# (F*(F-1)) * None * K
+        # todo Tensor("Pairwise-Interaction-Layer/stack:0", shape=(741, ?, 256), dtype=float32)
+        # print("element_wise_product",element_wise_product)
         element_wise_product = tf.transpose(element_wise_product, perm=[1,0,2]) 				# None * (F*(F-1)) * K
         #interactions = tf.reduce_sum(element_wise_product, 2, name="interactions")
 
@@ -216,10 +232,16 @@ def model_fn(features, labels, mode, params):
         pred = tf.sigmoid(y)
 
     predictions={"prob": pred}
-    # todo 需指定模型的输入和输出，并在tags中包含”serve”，在实际使用中，TF Serving要求导出模型包含”serve”这个tag。此外，还需要指定默认签名，tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY = “serving_default”，此外tf.saved_model.signature_constants定义了三类签名，分别是：
-    # 分类classify
-    # 回归regress
-    # 预测predict
+    # todo   TensorFlow Serving服务框架     -- http://octopuscoder.github.io/2019/05/07/%E4%BD%BF%E7%94%A8TensorFlow-Serving%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%9E%8B/
+    #   框架分为模型训练、模型上线和服务使用三部分。模型训练与正常的训练过程一致，只是导出时需要按照TF Serving的标准定义输入、输出和签名。
+    #   模型上线时指定端口号和模型路径后，通过tensorflow_model_server命令启动服务。服务使用可通过grpc和RESTfull方式请求。
+    #   &
+    #   模型导出时，需指定模型的输入和输出，并在tags中包含”serve”，在实际使用中，TF Serving要求导出模型包含”serve”这个tag。
+    #   此外，还需要指定默认签名，tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY = “serving_default”，
+    #   此外tf.saved_model.signature_constants定义了三类签名，分别是：分类classify,回归regress,预测predict
+
+    #  todo 一个head必须使用signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY进行命名，
+    #   它表示当一个inference请求没有指定一个head（？？？）时，哪个SignatureDef会被服务到。
     export_outputs = {tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: tf.estimator.export.PredictOutput(predictions)}
     # Provide an estimator spec for `ModeKeys.PREDICT`
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -236,6 +258,30 @@ def model_fn(features, labels, mode, params):
         l2_reg * tf.nn.l2_loss(Feat_Bias) + l2_reg * tf.nn.l2_loss(Feat_Emb)
 
     # Provide an estimator spec for `ModeKeys.EVAL`
+    # todo https://blog.csdn.net/qq_32806793/article/details/85010302
+    #  tf.estimator.EstimatorSpec讲解
+    #   是一个class，是定义在model_fn中的，并且model_fn返回的也是它的一个实例，这个实例是用来初始化Estimator类的
+    #  主要参数：
+    #   mode: A ModeKeys. Specifies if this is training, evaluation or prediction.
+    #   predictions: Predictions Tensor or dict of Tensor.
+    # 	loss: Training loss Tensor. Must be either scalar, or with shape [1].
+    # 	train_op: Op for the training step.
+    # 	eval_metric_ops: Dict of metric results keyed by name. The values of the dict can be one of the following: (1) instance of Metric class. (2) Results of calling a metric function, namely a (metric_tensor, update_op) tuple. metric_tensor should be evaluated without any impact on state (typically is a pure computation results based on variables.). For example, it should not trigger the update_op or requires any input fetching.
+    # 	export_outputs: Describes the output signatures to be exported to SavedModel and used during serving. A dict {name: output} where:
+    # 	name: An arbitrary name for this output.
+    # 	output: an ExportOutput object such as ClassificationOutput, RegressionOutput, or PredictOutput. Single-headed models only need to specify one entry in this dictionary. Multi-headed models should specify one entry for each head, one of which must be named using signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY. If no entry is provided, a default PredictOutput mapping to predictions will be created.
+    # 	training_chief_hooks: Iterable of tf.train.SessionRunHook objects to run on the chief worker during training.
+    # 	training_hooks: Iterable of tf.train.SessionRunHook objects to run on all workers during training.
+    # 	scaffold: A tf.train.Scaffold object that can be used to set initialization, saver, and more to be used in training.
+    # 	evaluation_hooks: Iterable of tf.train.SessionRunHook objects to run during evaluation.
+    # 	prediction_hooks: Iterable of tf.train.SessionRunHook objects to run during predictions.
+    #  	说明
+    # 	根据不同的mode值，使用不同的参数创建不同的EstimatorSpec实例（主要是 训练train，验证dev，测试test）：
+    # 	For mode==ModeKeys.TRAIN: 需要的参数是 loss and train_op.
+    # 	For mode==ModeKeys.EVAL:  需要的参数是  loss.
+    # 	For mode==ModeKeys.PREDICT: 需要的参数是 predictions.
+    # 	EstimatorSpec实例定义在方法mode_fn中，方法mode_fn可以计算各个mode下的参数需求，定义好的 EstimatorSpec 用来初始化 一个Estimator实例，
+    # 	同时Estimator实例可以根据mode的不同自动的忽视一些参数（操作），例如：train_op will be ignored in eval and infer modes.
     eval_metric_ops = {
         "auc": tf.metrics.auc(labels, pred)
     }
@@ -375,10 +421,14 @@ def main(_):
     }
     config = tf.estimator.RunConfig().replace(session_config = tf.ConfigProto(device_count={'GPU':0, 'CPU':FLAGS.num_threads}),
             log_step_count_steps=FLAGS.log_steps, save_summary_steps=FLAGS.log_steps)
+    # todo https://blog.csdn.net/khy19940520/article/details/99948848
+    #  replace之后，前面设置的一些参数均失效了
+    #  https://www.cnblogs.com/zongfa/p/10149483.html
+    #  config 参数为 tf.estimator.RunConfig 对象，包含了执行环境的信息。如果没有传递 config，则它会被 Estimator 实例化，使用的是默认配置。
     Estimator = tf.estimator.Estimator(model_fn=model_fn, model_dir=FLAGS.model_dir, params=model_params, config=config)
 
     if FLAGS.task_type == 'train':
-        train_spec = tf.estimator.TrainSpec(input_fn=lambda: input_fn(tr_files, num_epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size))
+        train_spec = tf.estimator.TrainSpec(input_fn=lambda: input_fn(tr_files, num_epochs=FLAGS.num_epochs, batch_size=FLAGS.batch_size),max_steps=202)
         eval_spec = tf.estimator.EvalSpec(input_fn=lambda: input_fn(va_files, num_epochs=1, batch_size=FLAGS.batch_size), steps=None, start_delay_secs=1000, throttle_secs=1200)
         tf.estimator.train_and_evaluate(Estimator, train_spec, eval_spec)
     elif FLAGS.task_type == 'eval':
@@ -389,6 +439,7 @@ def main(_):
             for prob in preds:
                 fo.write("%f\n" % (prob['prob']))
     elif FLAGS.task_type == 'export':
+        # todo 开启服务
         #feature_spec = tf.feature_column.make_parse_example_spec(feature_columns)
         #feature_spec = {
         #    'feat_ids': tf.FixedLenFeature(dtype=tf.int64, shape=[None, FLAGS.field_size]),
@@ -405,3 +456,4 @@ def main(_):
 if __name__ == "__main__":
     tf.logging.set_verbosity(tf.logging.INFO)
     tf.app.run()
+
