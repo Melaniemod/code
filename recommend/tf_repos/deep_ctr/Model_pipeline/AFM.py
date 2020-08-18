@@ -45,6 +45,7 @@ tf.app.flags.DEFINE_integer("embedding_size", 256, "Embedding size")
 tf.app.flags.DEFINE_integer("num_epochs", 1, "Number of epochs")
 tf.app.flags.DEFINE_integer("batch_size", 128, "Number of batch size")
 tf.app.flags.DEFINE_integer("log_steps", 1000, "save summary every steps")
+
 tf.app.flags.DEFINE_float("learning_rate", 0.1, "learning rate")
 tf.app.flags.DEFINE_float("l2_reg", 1.0, "L2 regularization")
 tf.app.flags.DEFINE_string("loss_type", 'log_loss', "loss type {square_loss, log_loss}")
@@ -212,6 +213,7 @@ def model_fn(features, labels, mode, params):
         # print('aij=',aij)
 
         #aij_reshape = tf.reshape(aij, shape=[-1, num_interactions, 1])							# None * (F*(F-1)) * 1
+        # todo tf.nn.softmax可以在不同的维度上进行softmax的计算
         aij_softmax = tf.nn.softmax(tf.reshape(aij, shape=[-1, num_interactions, 1]), dim=1, name='attention_soft')
         if mode == tf.estimator.ModeKeys.TRAIN:
             aij_softmax = tf.nn.dropout(aij_softmax, keep_prob=dropout[0])

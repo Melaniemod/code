@@ -1,6 +1,5 @@
 传入的参数
 flags
-	dist_mode
 	ps_hosts
 	worker_hosts
 	job_name
@@ -12,20 +11,21 @@ flags
 	num_epochs
 	batch_size
 	log_steps
+
 	learning_rate
 	l2_reg
 	loss_type
 	optimizer
-	deep_layers
+	attention_layers
 	dropout
-	batch_norm
-	batch_norm_decay
 	data_dir
 	dt_dir
 	model_dir
 	servable_model_dir
 	task_type
 	clear_existing_model
+
+
 
 input_fn 
 	输入：filenames, batch_size=32, num_epochs=1, perform_shuffle=False
@@ -52,7 +52,7 @@ input_fn
 
 model_fn:
 	输入：features, labels, mode, params
-	解析参数：
+	从params中解析参数：
 		field_size
 		feature_size
 		embedding_size

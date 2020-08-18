@@ -9,7 +9,9 @@ recommendation/DeepFM/data/
 recommendation/DeepFM/example/data
 recommendation/DeepFM/example/output/
 *.csv
-
+*.pkl
+*.tar.gz
+*checkpoint
 
 # 不同步模型目录
 *.local
@@ -24,6 +26,12 @@ recommendation/DeepFM/example/output/
 */*/*/*/data/
 */*/*/*/*/data/
 */*/*/*/*/*/data/
+*/raw_data/
+*/*/raw_data/
+*/*/*/raw_data/
+*/*/*/*/raw_data/
+*/*/*/*/*/raw_data/
+*/*/*/*/*/*/raw_data/
 */*/model_ckpt/
 */*/*/model_ckpt/
 */*/*/*/model_ckpt
@@ -38,6 +46,15 @@ recommendation/DeepFM/example/output/
 */*/*/*/output/
 */*/*/*/*/output/
 */*/*/*/*/*/output/
+*/save_path/
+*/*/save_path/
+*/*/*/save_path/
+*/*/*/*/save_path/
+*/*/*/*/*/save_path/
+*/*/*/*/*/*/save_path/
+
+
+
 
 # C extensions
 *.so
