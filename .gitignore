@@ -12,6 +12,10 @@ recommendation/DeepFM/example/output/
 *.pkl
 *.tar.gz
 *checkpoint
+*aa
+*ab
+*ac
+*log*
 
 # 不同步模型目录
 *.local
